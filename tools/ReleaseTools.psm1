@@ -37,10 +37,13 @@ function Get-Bullets {
             'TylerLeonhardt'
         )
 
-        $LabelEmoji = @{
+        $IssueEmojis = @{
             'Issue-Enhancement'         = '✨'
             'Issue-Bug'                 = '🐛'
             'Issue-Performance'         = '⚡️'
+        }
+
+        $AreaEmojis = @{
             'Area-Build & Release'      = '👷'
             'Area-Code Formatting'      = '💎'
             'Area-Configuration'        = '🔧'
@@ -81,12 +84,9 @@ function Get-Bullets {
     process {
         $PullRequests | ForEach-Object {
             # Map all the labels to emoji (or use a default).
-            # NOTE: Whitespacing here is weird.
-            $emoji = if ($_.labels) {
-                $LabelEmoji[$_.labels.LabelName] -join ""
-            } else {
-                '#️⃣ 🙏'
-            }
+            $labels = if ($_.labels) { $_.labels.LabelName } else { "" }
+            $issueEmoji = $IssueEmojis[$labels] + "#️⃣" | Select-Object -First 1
+            $areaEmoji = $AreaEmojis[$labels] + "🙏" | Select-Object -First 1
 
             # Get a linked issue number if it exists (or use the PR).
             $link = if ($_.body -match $IssueRegex) {
@@ -105,7 +105,7 @@ function Get-Bullets {
             }
 
             # Put the bullet point together.
-            ("-", $emoji, "[$link]($($_.html_url))", "-", "$($_.title).", $thanks -join " ").Trim()
+            ("-", $issueEmoji, $areaEmoji, "[$link]($($_.html_url))", "-", "$($_.title).", $thanks -join " ").Trim()
         }
     }
 }
@@ -132,6 +132,25 @@ function Get-FirstChangelog {
     ).Where(
         { $_.StartsWith("## ") -and $_ -ne $Header }, "Until"
     )
+}
+
+<#
+.SYNOPSIS
+  Creates and checks out `release/v<version>` if not already on it.
+#>
+function Update-Branch {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Version
+    )
+    $Branch = git branch --show-current
+    $NewBranch = "release/v$Version"
+    if ($Branch -ne $NewBranch) {
+        if ($PSCmdlet.ShouldProcess($NewBranch, "git checkout -b")) {
+            git checkout -b $NewBranch
+        }
+    }
 }
 
 <#
@@ -187,8 +206,7 @@ function Update-Changelog {
         Where-Object { -not $_.user.UserName.EndsWith("[bot]") } |
         Where-Object { "Ignore" -notin $_.labels.LabelName } |
         Where-Object { -not $_.title.StartsWith("[Ignore]") } |
-        Where-Object { -not $_.title.StartsWith("Update CHANGELOG") } |
-        Where-Object { -not $_.title.StartsWith("Bump version") } |
+        Where-Object { -not $_.title.StartsWith("Release ``v") } |
         Get-Bullets -RepositoryName $RepositoryName
 
     $NewSection = switch ($RepositoryName) {
@@ -220,14 +238,14 @@ function Update-Changelog {
         $CurrentChangelog[2..$CurrentChangelog.Length]
     ) | Set-Content -Encoding utf8NoBOM -Path $ChangelogFile
 
-    if ($PSCmdlet.ShouldProcess("$RepositoryName/$ChangelogFile", "git")) {
-        $branch = git branch --show-current
-        if ($branch -ne "release/$Version") {
-            git checkout -b "release/$Version"
-        }
+    Update-Branch -Version $Version.Substring(1) # Has "v" prefix
+
+    if ($PSCmdlet.ShouldProcess("$RepositoryName/$ChangelogFile", "git commit")) {
         git add $ChangelogFile
-        git commit -m "Update CHANGELOG for $Version"
+        git commit -m "Update CHANGELOG for ``$Version``"
     }
+
+    Update-Version -RepositoryName $RepositoryName
 
     Pop-Location
 }
@@ -238,18 +256,18 @@ function Update-Changelog {
 .DESCRIPTION
   Note that our Git tags and changelog prefix all versions with `v`.
 
-  PowerShellEditorServices: version is `x.y.z-preview.d`
+  PowerShellEditorServices: version is `X.Y.Z-preview`
 
   - PowerShellEditorServices.psd1:
-    - `ModuleVersion` variable with `'x.y.z'` string, no pre-release info
+    - `ModuleVersion` variable with `'X.Y.Z'` string, no pre-release info
   - PowerShellEditorServices.Common.props:
-    - `VersionPrefix` field with `x.y.z`
+    - `VersionPrefix` field with `X.Y.Z`
     - `VersionSuffix` field with pre-release portion excluding hyphen
 
-  vscode-powershell: version is `yyyy.mm.x-preview`
+  vscode-powershell: version is `YYYY.M.X-preview`
 
   - package.json:
-    - `version` field with `"x.y.z"` and no prefix or suffix
+    - `version` field with `"X.Y.Z"` and no prefix or suffix
     - `preview` field set to `true` or `false` if version is a preview
     - `name` field has `-preview` appended similarly
     - `displayName` field has ` Preview` appended similarly
@@ -310,9 +328,61 @@ function Update-Version {
         }
     }
 
+    Update-Branch -Version $Version
+
     if ($PSCmdlet.ShouldProcess("$RepositoryName/v$Version", "git commit")) {
-        git commit -m "Bump version to v$Version"
+        git commit -m "Bump version to ``v$Version``"
+    } # TODO: Git reset to unstage
+
+    New-ReleasePR -RepositoryName $RepositoryName
+
+    Pop-Location
+}
+
+<#
+.SYNOPSIS
+  Creates a new draft GitHub PR from the release branch.
+.DESCRIPTION
+  Pushes the release branch to `origin` and then opens a draft PR.
+#>
+function New-ReleasePR {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet([RepoNames])]
+        [string]$RepositoryName
+    )
+    # NOTE: This a side effect neccesary for Git operations to work.
+    Push-Location -Path "$PSScriptRoot/../../$RepositoryName"
+
+    $Version = Get-Version -RepositoryName $RepositoryName
+    $Branch = "release/v$Version"
+
+    Update-Branch -Version $Version
+
+    if ($PSCmdlet.ShouldProcess("$RepositoryName/$Branch", "git push")) {
+        Write-Host "Pushing branch ``$Branch``..."
+        git push origin $Branch
     }
+
+    $Repo = Get-GitHubRepository -OwnerName PowerShell -RepositoryName $RepositoryName
+
+    $Params = @{
+        Head    = $Branch
+        Base    = "master"
+        Draft   = $true
+        Title   = "Release ``v$Version``"
+        Body    = "Automated PR for new release!"
+        WhatIf  = $WhatIfPreference
+        Confirm = $ConfirmPreference
+    }
+
+    $PR = $Repo | New-GitHubPullRequest @Params
+    Write-Host "Draft PR URL: $($PR.html_url)"
+
+    # NOTE: The API is weird. According to GitHub, all PRs are Issues, so this
+    # works, but the module doesn't support it as easily as it could.
+    $Repo | Add-GitHubIssueLabel -Issue $PR.PullRequestNumber -LabelName "Ignore"
 
     Pop-Location
 }
@@ -330,30 +400,34 @@ function New-DraftRelease {
     param(
         [Parameter(Mandatory)]
         [ValidateSet([RepoNames])]
-        [string]$RepositoryName
+        [string]$RepositoryName,
+
+        [Parameter()]
+        [string[]]$Assets
     )
     $Version = Get-Version -RepositoryName $RepositoryName
     $Changelog = (Get-FirstChangelog -RepositoryName $RepositoryName) -join "`n"
     $ReleaseParams = @{
-        Draft      = $true
-        Tag        = "v$Version"
-        Name       = "v$Version"
-        Body       = $ChangeLog
-        PreRelease = [bool]$Version.PreReleaseLabel
-        # TODO: Pass -WhatIf and -Confirm parameters correctly.
+        # NOTE: We rely on GitHub to create the tag at that branch.
+        Tag            = "v$Version"
+        Committish     = "release/v$Version"
+        Name           = "v$Version"
+        Body           = $ChangeLog
+        Draft          = $true
+        PreRelease     = [bool]$Version.PreReleaseLabel
+        OwnerName      = "PowerShell"
+        RepositoryName = $RepositoryName
+        WhatIf         = $WhatIfPreference
+        Confirm        = $ConfirmPreference
     }
 
-    if ($PSCmdlet.ShouldProcess("$RepositoryName/v$Version", "git tag")) {
-        # NOTE: This a side effect neccesary for Git operations to work.
-        Push-Location -Path "$PSScriptRoot/../../$RepositoryName"
-        if (-not (git show-ref --tags "v$Version")) {
-            git tag "v$Version"
-        } else {
-            Write-Warning "git tag $RepositoryName/v$Version already exists!"
-        }
-        Pop-Location
+    $Release = New-GitHubRelease @ReleaseParams
+    if ($Release) {
+        Write-Host "Draft release URL: $($Release.html_url)"
+        # NOTE: We must loop around `New-GitHubReleaseAsset` so we can pipe
+        # `$Release` or it can fail to find the newly created release by its ID
+        # (probably a race condition).
+        Write-Host "Uploading assets..."
+        $Assets | ForEach-Object { $Release | New-GitHubReleaseAsset -Path $_ }
     }
-
-    Get-GitHubRepository -OwnerName PowerShell -RepositoryName $RepositoryName |
-        New-GitHubRelease @ReleaseParams
 }

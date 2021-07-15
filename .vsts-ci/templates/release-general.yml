@@ -10,8 +10,8 @@ steps:
   displayName: 'Download Artifacts from PowerShellEditorServices'
   inputs:
     source: specific
-    project: '8e2735c1-3674-408a-bcab-87f089ea29d5'
-    pipeline: 1056
+    project: 'PowerShellEditorServices'
+    pipeline: 36
     preferTriggeringPipeline: true
     allowPartiallySucceededBuilds: true
     artifact: 'PowerShellEditorServices'
@@ -33,13 +33,12 @@ steps:
 
 - template: EsrpSign.yml@ComplianceRepo
   parameters:
-    # TODO: $[in(variables['Build.Reason'], 'Manual', 'ResourceTrigger')]
-    shouldSign: true
     buildOutputPath: '$(Build.ArtifactStagingDirectory)/vscode-powershell'
     signOutputPath: '$(Build.ArtifactStagingDirectory)/Signed'
     alwaysCopy: true # So publishing works
     certificateId: 'CP-230012' # Authenticode certificate
     useMinimatch: true # This enables the use of globbing
+    shouldSign: true # We always want to sign
     # NOTE: Code AKA *.vsix files are not signed
     pattern: |
       Install-VSCode.ps1

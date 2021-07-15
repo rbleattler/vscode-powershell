@@ -1,5 +1,48 @@
 # PowerShell Extension Release History
 
+## v2021.7.0-preview
+### Thursday, July 15, 2021
+
+#### [vscode-powershell](https://github.com/PowerShell/vscode-powershell)
+
+- ✨ 👷 [vscode-powershell #3458](https://github.com/PowerShell/vscode-powershell/pull/3458) - Automate more of the release.
+- ✨ 👷 [vscode-powershell #3439](https://github.com/PowerShell/vscode-powershell/pull/3439) - Fix `Package` task.
+
+#### [PowerShellEditorServices](https://github.com/PowerShell/PowerShellEditorServices)
+
+- ✨ 🚨 [PowerShellEditorServices #1522](https://github.com/PowerShell/PowerShellEditorServices/pull/1522) - Run new PSReadLine test on Windows.
+- ✨ 📖 [PowerShellEditorServices #1519](https://github.com/PowerShell/PowerShellEditorServices/pull/1519) - Update README.md. (Thanks @vladdoster!)
+- ✨ 🙏 [PowerShellEditorServices #1493](https://github.com/PowerShell/PowerShellEditorServices/pull/1514) - Load only bundled `PSReadLine`.
+- 🐛 👷 [PowerShellEditorServices #1513](https://github.com/PowerShell/PowerShellEditorServices/pull/1513) - Import `InvokePesterStub.ps1` from `vscode-powershell` (with history).
+- 🐛 🛫 [PowerShellEditorServices #1503](https://github.com/PowerShell/PowerShellEditorServices/pull/1504) - Handle `incomingSettings` and `profileObject` being null. (Thanks @dkattan!)
+
+
+## v2021.6.2
+### Thursday, June 24, 2021
+
+#### [vscode-powershell](https://github.com/PowerShell/vscode-powershell)
+
+- 👷🐛 [vscode-powershell #2536](https://github.com/PowerShell/vscode-powershell/pull/3431) - Release refinements.
+
+#### [PowerShellEditorServices](https://github.com/PowerShell/PowerShellEditorServices)
+
+- 👷🐛 [PowerShellEditorServices #1509](https://github.com/PowerShell/PowerShellEditorServices/issues/1509) Fix signing of files in release.
+
+
+## v2021.6.1
+### Monday, June 21, 2021
+
+#### [vscode-powershell](https://github.com/PowerShell/vscode-powershell)
+
+- 📁✨ [vscode-powershell #3334](https://github.com/PowerShell/vscode-powershell/pull/3416) - Explicitly disable extension for untrusted workspaces.
+- 📺 [vscode-powershell #3378](https://github.com/PowerShell/vscode-powershell/pull/3413) - Include `$` in PowerShell word separators.
+- #️⃣ 🙏 [vscode-powershell #3390](https://github.com/PowerShell/vscode-powershell/pull/3392) - Change OS-architecture check to work with other locales. (Thanks @mat-ocl!)
+
+#### [PowerShellEditorServices](https://github.com/PowerShell/PowerShellEditorServices)
+
+- 🐛 [PowerShellEditorServices #1495](https://github.com/PowerShell/PowerShellEditorServices/pull/1500) - Prevent some exceptions.
+- #️⃣ 🙏 [vscode-powershell #3395](https://github.com/PowerShell/PowerShellEditorServices/pull/1494) - Work around `dotnet publish` bug.
+
 ## v2021.5.1
 ### Thursday, May 27, 2021
 
